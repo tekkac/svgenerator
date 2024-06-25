@@ -3,8 +3,8 @@ use std::{collections::HashMap, str::FromStr};
 
 use pest::iterators::Pair;
 use pest_derive::Parser;
-use thiserror::Error;
 use std::fmt::Display;
+use thiserror::Error;
 #[derive(Parser, Debug)]
 #[grammar = "parser/svg.pest"]
 pub struct SvgParser {}
@@ -22,18 +22,18 @@ pub enum SvgElementError {
 }
 
 #[derive(Debug, Clone, Default)]
-pub enum CairoStringRepr{
+pub enum CairoStringRepr {
     #[default]
     ArrayFelt, // default representation of string in cairo lang.
-    ByteArray
+    ByteArray,
 }
 
-impl Display for CairoStringRepr{
+impl Display for CairoStringRepr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self{
+        match *self {
             Self::ArrayFelt => write!(f, "Array<felt252>"),
             Self::ByteArray => write!(f, "ByteArray"),
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 }
@@ -42,7 +42,7 @@ impl FromStr for CairoStringRepr {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s{
+        match s {
             "ByteArray" => Ok(CairoStringRepr::ByteArray),
             _ => Err(()),
         }

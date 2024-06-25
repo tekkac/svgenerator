@@ -1,13 +1,14 @@
 use std::{
     fs::read_to_string,
-    path::{Path, PathBuf}, str::FromStr,
+    path::{Path, PathBuf},
+    str::FromStr,
 };
 
+use crate::parser::{SvgElement, SvgParser};
+use crate::writer::{ConsoleWriter, FileWriter, Writer};
 use parser::CairoStringRepr;
 use pest::Parser;
 use regex::{Captures, Regex, Replacer};
-use crate::parser::{SvgElement, SvgParser};
-use crate::writer::{ConsoleWriter, FileWriter, Writer};
 
 mod parser;
 mod writer;
@@ -34,7 +35,7 @@ fn main() -> anyhow::Result<()> {
             let quote_escape = matches.get_flag("escaped");
             let html_escape = matches.get_flag("html");
             let string_repr_flag_value = matches.get_one::<String>("type");
-            let string_repr_type = match string_repr_flag_value{
+            let string_repr_type = match string_repr_flag_value {
                 None => CairoStringRepr::default(),
                 Some(t) => CairoStringRepr::from_str(t).expect("should be ByteArray"),
             };
