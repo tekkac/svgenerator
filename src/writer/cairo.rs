@@ -557,7 +557,7 @@ mod tests {
         let input = r#"<svg width="316" height="360" viewBox="0 0 316 360" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"></svg>"#;
 
         let cairo_string: CairoString = CairoString::from(input);
-        let expected = "\tsvg.append('<svg width=\"316\" height=\"360\" v');\n\tsvg.append('iewBox=\"0 0 316 360\" fill=\"none');\n\tsvg.append('\" xmlns=\"http://www.w3.org/2000');\n\tsvg.append('/svg\" xmlns:xlink=\"http://www.w');\n\tsvg.append('3.org/1999/xlink\"></svg>');";
+        let expected = "\tsvg.append('<svg width=\\\\\"316\\\\\" height=\\\\\"');\n\tsvg.append('360\\\\\" viewBox=\\\\\"0 0 316 360\\\\');\n\tsvg.append('\" fill=\\\\\"none\\\\\" xmlns=\\\\\"http');\n\tsvg.append('://www.w3.org/2000/svg\\\\\" xmlns');\n\tsvg.append(':xlink=\\\\\"http://www.w3.org/199');\n\tsvg.append('9/xlink\\\\\"></svg>');";
 
         assert_eq!(expected, cairo_string.to_string());
     }
@@ -651,8 +651,8 @@ mod tests {
         let input = "this is a test string @@argument_1@@ with two vars @@argument2@@";
         let arguments = Arguments::from(input);
 
-        assert_eq!(arguments.0.get(&0).unwrap().0.as_str(), "felt252");
-        assert_eq!(arguments.0.get(&1).unwrap().0.as_str(), "felt252");
+        assert_eq!(arguments.0.get(&0).unwrap().1.as_str(), "felt252");
+        assert_eq!(arguments.0.get(&1).unwrap().1.as_str(), "felt252");
     }
 
     #[test]
@@ -660,14 +660,16 @@ mod tests {
         let input = "@@argument1:ConcreteType@@";
         let arguments = Arguments::from(input);
 
-        assert_eq!(arguments.0.get(&0).unwrap().0.as_str(), "ConcreteType");
-    }
+        assert_eq!(arguments.0.get(&0).unwrap().0.as_str(), "argument1");
+        assert_eq!(arguments.0.get(&0).unwrap().1.as_str(), "ConcreteType");
+        
+            }
 
     #[test]
     fn test_cairo_string_with_arguments() {
         let input = r#"<svg width="@@starknet_id@@"></svg>"#;
         let cairo_string = CairoString::from(input);
-        let expected = "\tsvg.append('<svg width=\"');\n\tsvg.append(starknet_id);\n\tsvg.append('\"></svg>');";
+        let expected = "\tsvg.append('<svg width=\\\\\"');\n\tsvg.concat(*data.starknet_id);\n\tsvg.append('\\\\\"></svg>');";
 
         assert_eq!(expected, cairo_string.to_string());
     }
