@@ -1,12 +1,11 @@
 use std::{
     fs::read_to_string,
-    path::{Path, PathBuf},
+    path::{Path, PathBuf}, str::FromStr,
 };
 
+use parser::CairoStringRepr;
 use pest::Parser;
 use regex::{Captures, Regex, Replacer};
-use writer::cairo::CairoProgram;
-
 use crate::parser::{SvgElement, SvgParser};
 use crate::writer::{ConsoleWriter, FileWriter, Writer};
 
@@ -26,7 +25,7 @@ fn main() -> anyhow::Result<()> {
                 true,
                 true,
                 ConsoleWriter {},
-                None,
+                CairoStringRepr::default(),
             )?;
             println!("{:#?}", path);
         }
@@ -34,14 +33,17 @@ fn main() -> anyhow::Result<()> {
             let path = matches.get_one::<std::path::PathBuf>("PATH");
             let quote_escape = matches.get_flag("escaped");
             let html_escape = matches.get_flag("html");
-            let string_type = matches.get_one::<String>("type");
-            
+            let string_repr_flag_value = matches.get_one::<String>("type");
+            let string_repr_type = match string_repr_flag_value{
+                None => CairoStringRepr::default(),
+                Some(t) => CairoStringRepr::from_str(t).expect("should be ByteArray"),
+            };
             handle_file(
                 path.expect("should at least have one path"),
                 quote_escape,
                 html_escape,
                 FileWriter {},
-                string_type.map(String::to_owned),
+                string_repr_type,
             )?;
             println!("{:#?}", path);
         }
@@ -124,7 +126,7 @@ fn handle_file<P: AsRef<Path>>(
     quote_escape: bool,
     html_escape: bool,
     writer: impl Writer,
-    type_override: Option<String>,
+    type_override: CairoStringRepr,
 ) -> anyhow::Result<()> {
     let mut unparsed_file = read_to_string(&path)
         .expect("cannot read file")
@@ -147,7 +149,7 @@ fn handle_file<P: AsRef<Path>>(
     let mut parsed = SvgParser::parse(parser::Rule::root, &unparsed_file).unwrap();
     let document = parsed.next().unwrap();
     let mut svg: SvgElement = SvgElement::try_from(document).unwrap();
-    svg.with_type_override(type_override.as_deref());
+    svg.with_type_override(type_override);
     let file = path.as_ref().as_os_str().to_str().unwrap();
     let header = format!(
         "\

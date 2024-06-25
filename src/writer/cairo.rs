@@ -1,11 +1,10 @@
-use crate::{parser::SvgElement, writer::DEFAULT_STRING_CAIRO_TYPE};
+use crate::{parser::{CairoStringRepr, SvgElement}, writer::DEFAULT_STRING_CAIRO_TYPE};
 use itertools::Itertools;
 use rand::Rng;
 use regex::Regex;
 use std::{
     collections::BTreeMap,
     fmt::{Display, Write},
-    string,
 };
 
 impl Display for SvgElement {
@@ -37,10 +36,6 @@ impl Display for SvgElement {
         }
 
         let function_name = get_function_name_from_part(&body);
-        let string_type = match self.type_override {
-            Some(ref t) => t.to_string(),
-            None => String::from(DEFAULT_STRING_CAIRO_TYPE),
-        };
 
         write!(
             f,
@@ -59,7 +54,7 @@ fn {}(ref svg: {} {}) {{
                 .collect::<Vec<String>>()
                 .join("\n"),
             head.name.to_string(),
-            string_type,
+            self.type_override,
             print_function_required_arguments(
                 parts.as_slice(),
                 body.iter()
@@ -209,8 +204,7 @@ struct Part {
     name: String,
     value: CairoString,
     as_function_call: bool,
-    // override the default type of string, default is Array<felt252>
-    type_override: Option<String>,
+    type_override: CairoStringRepr,
 }
 
 /// Generates a random integer as a String
@@ -335,11 +329,6 @@ fn format_arguments(args: &Arguments) -> String {
 
 impl Display for Part {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let string_type = match self.type_override {
-            Some(ref t) => t.to_string(),
-            None => String::from("Array<felt252>"),
-        };
-
         write!(
             f,
             r#"#[inline(always)]
@@ -347,7 +336,7 @@ fn {}(ref svg: {}, data: @Data) {{
 {}
 }}"#,
             &self.name,
-            string_type,
+            self.type_override,
             self.value.to_string(),
         )
     }
