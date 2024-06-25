@@ -1,4 +1,4 @@
-use crate::parser::SvgElement;
+use crate::{parser::SvgElement, writer::DEFAULT_STRING_CAIRO_TYPE};
 use itertools::Itertools;
 use rand::Rng;
 use regex::Regex;
@@ -39,7 +39,7 @@ impl Display for SvgElement {
         let function_name = get_function_name_from_part(&body);
         let string_type = match self.type_override {
             Some(ref t) => t.to_string(),
-            None => String::from("Array<felt252>"),
+            None => String::from(DEFAULT_STRING_CAIRO_TYPE),
         };
 
         write!(

@@ -4,6 +4,8 @@ use thiserror::Error;
 
 pub mod cairo;
 
+pub const DEFAULT_STRING_CAIRO_TYPE: &str = "Array<felt252>";
+
 #[derive(Debug, Error)]
 pub enum WriterError {
     #[error("failed to create file")]
