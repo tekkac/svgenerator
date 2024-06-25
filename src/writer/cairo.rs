@@ -5,6 +5,7 @@ use regex::Regex;
 use std::{
     collections::BTreeMap,
     fmt::{Display, Write},
+    string,
 };
 
 impl Display for SvgElement {
@@ -36,6 +37,10 @@ impl Display for SvgElement {
         }
 
         let function_name = get_function_name_from_part(&body);
+        let string_type = match self.type_override {
+            Some(ref t) => t.to_string(),
+            None => String::from("Array<felt252>"),
+        };
 
         write!(
             f,
@@ -44,7 +49,7 @@ impl Display for SvgElement {
 {}
 
 #[inline(always)]
-fn {}(ref svg: Array<felt252>{}) {{
+fn {}(ref svg: {} {}) {{
 {}
 }}"#,
             prelude,
@@ -54,6 +59,7 @@ fn {}(ref svg: Array<felt252>{}) {{
                 .collect::<Vec<String>>()
                 .join("\n"),
             head.name.to_string(),
+            string_type,
             print_function_required_arguments(
                 parts.as_slice(),
                 body.iter()
@@ -203,6 +209,8 @@ struct Part {
     name: String,
     value: CairoString,
     as_function_call: bool,
+    // override the default type of string, default is Array<felt252>
+    type_override: Option<String>,
 }
 
 /// Generates a random integer as a String
@@ -237,6 +245,7 @@ impl Part {
             name,
             value: CairoString::from(head.to_owned()),
             as_function_call: false,
+            type_override: element.type_override.clone(),
         }
     }
 
@@ -256,6 +265,7 @@ impl Part {
             name,
             value: CairoString::from(tail.to_owned()),
             as_function_call: false,
+            type_override: element.type_override.clone(),
         }
     }
 
@@ -285,6 +295,7 @@ impl From<SvgElement> for Part {
             name,
             value: CairoString::from(value.outer),
             as_function_call: false,
+            type_override: value.type_override.clone(),
         }
     }
 }
@@ -300,6 +311,7 @@ impl From<&SvgElement> for Part {
             name,
             value: CairoString::from(value.outer.to_owned()),
             as_function_call: false,
+            type_override: value.type_override.clone(),
         }
     }
 }
@@ -323,13 +335,19 @@ fn format_arguments(args: &Arguments) -> String {
 
 impl Display for Part {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let string_type = match self.type_override {
+            Some(ref t) => t.to_string(),
+            None => String::from("Array<felt252>"),
+        };
+
         write!(
             f,
             r#"#[inline(always)]
-fn {}(ref svg: Array<felt252>, data: @Data) {{
+fn {}(ref svg: {}, data: @Data) {{
 {}
 }}"#,
             &self.name,
+            string_type,
             self.value.to_string(),
         )
     }
@@ -662,8 +680,7 @@ mod tests {
 
         assert_eq!(arguments.0.get(&0).unwrap().0.as_str(), "argument1");
         assert_eq!(arguments.0.get(&0).unwrap().1.as_str(), "ConcreteType");
-        
-            }
+    }
 
     #[test]
     fn test_cairo_string_with_arguments() {

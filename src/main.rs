@@ -5,6 +5,7 @@ use std::{
 
 use pest::Parser;
 use regex::{Captures, Regex, Replacer};
+use writer::cairo::CairoProgram;
 
 use crate::parser::{SvgElement, SvgParser};
 use crate::writer::{ConsoleWriter, FileWriter, Writer};
@@ -25,6 +26,7 @@ fn main() -> anyhow::Result<()> {
                 true,
                 true,
                 ConsoleWriter {},
+                None,
             )?;
             println!("{:#?}", path);
         }
@@ -32,11 +34,14 @@ fn main() -> anyhow::Result<()> {
             let path = matches.get_one::<std::path::PathBuf>("PATH");
             let quote_escape = matches.get_flag("escaped");
             let html_escape = matches.get_flag("html");
+            let string_type = matches.get_one::<String>("type");
+            
             handle_file(
                 path.expect("should at least have one path"),
                 quote_escape,
                 html_escape,
                 FileWriter {},
+                string_type.map(String::to_owned),
             )?;
             println!("{:#?}", path);
         }
@@ -119,6 +124,7 @@ fn handle_file<P: AsRef<Path>>(
     quote_escape: bool,
     html_escape: bool,
     writer: impl Writer,
+    type_override: Option<String>,
 ) -> anyhow::Result<()> {
     let mut unparsed_file = read_to_string(&path)
         .expect("cannot read file")
@@ -140,8 +146,8 @@ fn handle_file<P: AsRef<Path>>(
     }
     let mut parsed = SvgParser::parse(parser::Rule::root, &unparsed_file).unwrap();
     let document = parsed.next().unwrap();
-    let svg = SvgElement::try_from(document).unwrap();
-
+    let mut svg: SvgElement = SvgElement::try_from(document).unwrap();
+    svg.with_type_override(type_override.as_deref());
     let file = path.as_ref().as_os_str().to_str().unwrap();
     let header = format!(
         "\
@@ -193,7 +199,11 @@ fn create_command() -> clap::Command {
                 )
                 .arg_required_else_help(true)
                 .arg(clap::arg!(-e --escaped "Optionally escape quotes"))
-                .arg(clap::arg!(-z --html "Optionally toggle HTML compatibility")),
+                .arg(clap::arg!(-z --html "Optionally toggle HTML compatibility"))
+                .arg(
+                    clap::arg!(--type <STRING_TYPE> ... "Optionally specify type for string")
+                        .value_parser(clap::value_parser!(String)),
+                ),
         )
         .subcommand(
             clap::Command::new("groups")

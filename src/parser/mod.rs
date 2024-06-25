@@ -28,6 +28,7 @@ pub struct SvgElement {
     pub attributes: HashMap<String, String>,
     pub replacement: HashMap<String, String>,
     pub nodes: Vec<SvgElement>,
+    pub type_override: Option<String>,
 }
 
 impl TryFrom<Pair<'_, Rule>> for SvgElement {
@@ -96,6 +97,7 @@ impl TryFrom<Pair<'_, Rule>> for SvgElement {
             attributes,
             replacement,
             nodes,
+            type_override: None,
         })
     }
 }
@@ -113,6 +115,14 @@ impl SvgElement {
             .interleave(nodes_plain_outer)
             .collect::<Vec<String>>()
             .join("")
+    }
+
+    // set type override for parent and all child nodes
+    pub fn with_type_override(&mut self, type_override: Option<&str>) {
+        self.type_override = type_override.map(|s| s.to_owned());
+        for node in self.nodes.iter_mut() {
+            node.with_type_override(type_override);
+        }
     }
 }
 
@@ -311,6 +321,7 @@ mod tests {
                 attributes: HashMap::new(),
                 nodes: Vec::new(),
                 replacement: HashMap::new(),
+                type_override: None,
             }
         }
         fn add_node(&mut self, node: Self) {
