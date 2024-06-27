@@ -13,7 +13,7 @@ impl Display for SvgElement {
         let parts: Vec<CairoString> = self
             .outer
             .split("{inner_nodes}")
-            .map(|p| CairoString::from(p))
+            .map(|p| CairoString::from(p).with_type_override(self.type_override.clone()))
             .collect();
         let head = Part::build_head_element(self);
         let mut body: BTreeMap<usize, Part> = BTreeMap::new();
@@ -237,7 +237,8 @@ impl Part {
 
         Self {
             name,
-            value: CairoString::from(head.to_owned()),
+            value: CairoString::from(head.to_owned())
+                .with_type_override(element.type_override.clone()),
             as_function_call: false,
             type_override: element.type_override.clone(),
         }
@@ -257,7 +258,8 @@ impl Part {
 
         Self {
             name,
-            value: CairoString::from(tail.to_owned()),
+            value: CairoString::from(tail.to_owned())
+                .with_type_override(element.type_override.clone()),
             as_function_call: false,
             type_override: element.type_override.clone(),
         }
@@ -287,7 +289,7 @@ impl From<SvgElement> for Part {
 
         Self {
             name,
-            value: CairoString::from(value.outer),
+            value: CairoString::from(value.outer).with_type_override(value.type_override.clone()),
             as_function_call: false,
             type_override: value.type_override.clone(),
         }
@@ -303,7 +305,8 @@ impl From<&SvgElement> for Part {
 
         Self {
             name,
-            value: CairoString::from(value.outer.to_owned()),
+            value: CairoString::from(value.outer.to_owned())
+                .with_type_override(value.type_override.clone()),
             as_function_call: false,
             type_override: value.type_override.clone(),
         }
@@ -356,6 +359,7 @@ pub fn append_string(value: &mut String, append: &str) {
 pub struct CairoString {
     inner: String,
     arguments: Arguments,
+    type_override: CairoStringRepr,
 }
 
 #[derive(Debug, Clone)]
@@ -409,6 +413,7 @@ impl From<&str> for CairoString {
         Self {
             inner: value.to_string(),
             arguments: Arguments::from(value),
+            type_override: CairoStringRepr::default(),
         }
     }
 }
@@ -418,6 +423,7 @@ impl From<String> for CairoString {
         Self {
             inner: value.to_string(),
             arguments: Arguments::from(value.as_str()),
+            type_override: CairoStringRepr::default(),
         }
     }
 }
@@ -433,7 +439,15 @@ impl From<Vec<SvgElement>> for CairoString {
         Self {
             inner: elements.to_owned(),
             arguments: Arguments::from(elements.as_str()),
+            type_override: value[0].type_override.clone(),
         }
+    }
+}
+
+impl CairoString {
+    pub fn with_type_override(mut self, type_override: CairoStringRepr) -> Self {
+        self.type_override = type_override;
+        self
     }
 }
 
@@ -469,8 +483,9 @@ impl Display for CairoString {
             if 0 != i {
                 head.extend(['\n']);
             }
+
             // Escape quotes for JSON in Cairo
-            let part = &part.replace('"', "\\\\\"");
+            let part = part.replace(r#"""#, r#"\\\""#);
 
             // Make chunks of length at most 31 chars
             // but don't end with a single backslash
@@ -507,11 +522,21 @@ impl Display for CairoString {
 
                 let str = part[prev_index..*size + prev_index].chars();
                 prev_index += *size;
-                if !arg_names.contains(part) {
+                if !arg_names.contains(&part) {
                     head.extend("\tsvg.append(".chars());
-                    head.extend(['\'']);
-                    head.extend(str);
-                    head.extend(['\'']);
+                    match self.type_override {
+                        CairoStringRepr::ByteArray => {
+                            head.extend(['@', '\"']);
+                            // Escape quotes for JSON in Cairo
+                            head.extend(str.map(|c| c.to_string().replace(r#"""#, r#"\\""#)));
+                            head.extend(['\"']);
+                        }
+                        _ => {
+                            head.extend(['\'']);
+                            head.extend(str);
+                            head.extend(['\'']);
+                        }
+                    }
                 } else {
                     head.extend("\tsvg.concat(".chars());
                     head.extend("*data.".chars());
@@ -519,6 +544,10 @@ impl Display for CairoString {
                 }
                 head.extend([')', ';']);
             }
+        }
+        match self.type_override {
+            CairoStringRepr::ByteArray => {}
+            _ => {}
         }
         f.write_str(&head)
     }
