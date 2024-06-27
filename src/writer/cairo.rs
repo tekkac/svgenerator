@@ -1,7 +1,4 @@
-use crate::{
-    parser::{CairoStringRepr, SvgElement},
-    writer::DEFAULT_STRING_CAIRO_TYPE,
-};
+use crate::parser::{CairoStringRepr, SvgElement};
 use itertools::Itertools;
 use rand::Rng;
 use regex::Regex;
