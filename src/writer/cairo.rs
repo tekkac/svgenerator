@@ -486,68 +486,79 @@ impl Display for CairoString {
 
             // Escape quotes for JSON in Cairo
             let part = part.replace(r#"""#, r#"\\\""#);
-
-            // Make chunks of length at most 31 chars
-            // but don't end with a single backslash
-
-            let chunk_sizes =
-                part.chars()
-                    .collect::<Vec<char>>()
-                    .iter()
-                    .fold(vec![(0, false)], |mut acc, c| {
-                        let (size, prev_escaped) = acc.last_mut().unwrap();
-                        let new_escaped = c == &'\\';
-                        if 31 == *size {
-                            acc.push((1, new_escaped));
-                            acc
-                        } else if 30 == *size && new_escaped && !*prev_escaped {
-                            acc.push((1, new_escaped));
-                            acc
-                        } else if 30 == *size && &' ' == c {
-                            acc.push((1, false));
-                            acc
-                        } else {
-                            *size += 1;
-                            *prev_escaped = new_escaped;
-                            acc
-                        }
-                    });
-
-            let mut nodes = chunk_sizes.iter().enumerate();
-            let mut prev_index = 0;
-            while let Some((i, (size, _))) = nodes.next() {
-                if 0 != i {
-                    head.extend(['\n']);
-                }
-
-                let str = part[prev_index..*size + prev_index].chars();
-                prev_index += *size;
-                if !arg_names.contains(&part) {
+            // in case of using default Array<felt252> type, we need to chunk the string
+            // to avoid cairo string length limit
+            match self.type_override {
+                CairoStringRepr::ByteArray => {
                     head.extend("\tsvg.append(".chars());
-                    match self.type_override {
-                        CairoStringRepr::ByteArray => {
-                            head.extend(['@', '\"']);
-                            // Escape quotes for JSON in Cairo
-                            head.extend(str.map(|c| c.to_string().replace(r#"""#, r#"\\""#)));
-                            head.extend(['\"']);
+                    head.extend(['@', '\"']);
+                    // Escape quotes for JSON in Cairo
+                    head.extend(
+                        part.chars()
+                            .map(|c| c.to_string().replace(r#"""#, r#"\\""#)),
+                    );
+                    head.extend(['\"']);
+                    head.extend([')', ';']);
+                }
+                _ => {
+                    // Make chunks of length at most 31 chars
+                    // but don't end with a single backslash
+                    let chunk_sizes = part.chars().collect::<Vec<char>>().iter().fold(
+                        vec![(0, false)],
+                        |mut acc, c| {
+                            let (size, prev_escaped) = acc.last_mut().unwrap();
+                            let new_escaped = c == &'\\';
+                            if 31 == *size {
+                                acc.push((1, new_escaped));
+                                acc
+                            } else if 30 == *size && new_escaped && !*prev_escaped {
+                                acc.push((1, new_escaped));
+                                acc
+                            } else if 30 == *size && &' ' == c {
+                                acc.push((1, false));
+                                acc
+                            } else {
+                                *size += 1;
+                                *prev_escaped = new_escaped;
+                                acc
+                            }
+                        },
+                    );
+
+                    let mut nodes = chunk_sizes.iter().enumerate();
+                    let mut prev_index = 0;
+                    while let Some((i, (size, _))) = nodes.next() {
+                        if 0 != i {
+                            head.extend(['\n']);
                         }
-                        _ => {
-                            head.extend(['\'']);
+
+                        let str = part[prev_index..*size + prev_index].chars();
+                        prev_index += *size;
+                        if !arg_names.contains(&part) {
+                            head.extend("\tsvg.append(".chars());
+                            match self.type_override {
+                                CairoStringRepr::ByteArray => {
+                                    head.extend(['@', '\"']);
+                                    // Escape quotes for JSON in Cairo
+                                    head.extend(
+                                        str.map(|c| c.to_string().replace(r#"""#, r#"\\""#)),
+                                    );
+                                    head.extend(['\"']);
+                                }
+                                _ => {
+                                    head.extend(['\'']);
+                                    head.extend(str);
+                                    head.extend(['\'']);
+                                }
+                            }
+                        } else {
+                            head.extend("\tsvg.concat(".chars());
+                            head.extend("*data.".chars());
                             head.extend(str);
-                            head.extend(['\'']);
                         }
                     }
-                } else {
-                    head.extend("\tsvg.concat(".chars());
-                    head.extend("*data.".chars());
-                    head.extend(str);
                 }
-                head.extend([')', ';']);
             }
-        }
-        match self.type_override {
-            CairoStringRepr::ByteArray => {}
-            _ => {}
         }
         f.write_str(&head)
     }
