@@ -549,12 +549,14 @@ impl Display for CairoString {
                                     head.extend(['\'']);
                                     head.extend(str);
                                     head.extend(['\'']);
+                                    head.extend([')', ';']);
                                 }
                             }
                         } else {
                             head.extend("\tsvg.concat(".chars());
                             head.extend("*data.".chars());
                             head.extend(str);
+                            head.extend([')', ';']);
                         }
                     }
                 }
