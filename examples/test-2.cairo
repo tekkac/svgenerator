@@ -5,62 +5,62 @@
 
 
 #[inline(always)]
-fn print_51729(ref svg: Array<felt252>, data: @Data) {
-	svg.append('<g><text><tspan>Carbon units</t'
-	svg.append('span></text></g>'
+fn print_66006(ref svg: Array<felt252>, data: @Data) {
+	svg.append('<g><text><tspan>Carbon units</t');
+	svg.append('span></text></g>');
 }
 
 #[inline(always)]
-fn print_head_76822(ref svg: Array<felt252> , data: @Data) {
-	svg.append('<g><rect />'
-	print_51729(ref svg, data);
-	svg.append('<!-- progress bar --><path d='
-	svg.append('\"M179 269h106\" /><path d='
-	svg.append('\"M180 269h64\" /><rect /></g'
-	svg.append('>'
+fn print_head_84862(ref svg: Array<felt252> , data: @Data) {
+	svg.append('<g><rect />');
+	print_66006(ref svg, data);
+	svg.append('<!-- progress bar --><path d=');
+	svg.append('\"M179 269h106\" /><path d=');
+	svg.append('\"M180 269h64\" /><rect /></g');
+	svg.append('>');
 }
 
 #[inline(always)]
-fn print_90422(ref svg: Array<felt252>, data: @Data) {
-	svg.append('<svg><rect /><path /></svg>'
+fn print_22698(ref svg: Array<felt252>, data: @Data) {
+	svg.append('<svg><rect /><path /></svg>');
 }
 
 #[inline(always)]
-fn print_head_31975(ref svg: Array<felt252> , data: @Data) {
-	svg.append('<g>'
-	print_90422(ref svg, data);
-	svg.append('</g>'
+fn print_head_62996(ref svg: Array<felt252> , data: @Data) {
+	svg.append('<g>');
+	print_22698(ref svg, data);
+	svg.append('</g>');
 }
 
 #[inline(always)]
-fn print_46699(ref svg: Array<felt252>, data: @Data) {
-	svg.append('<g><text><tspan>Surface</tspan>'
-	svg.append('</text></g>'
+fn print_64668(ref svg: Array<felt252>, data: @Data) {
+	svg.append('<g><text><tspan>Surface</tspan>');
+	svg.append('</text></g>');
 }
 #[inline(always)]
-fn print_59621(ref svg: Array<felt252>, data: @Data) {
-	svg.append('<defs><clipPath><rect /></clipP'
-	svg.append('ath></defs>'
+fn print_56062(ref svg: Array<felt252>, data: @Data) {
+	svg.append('<defs><clipPath><rect /></clipP');
+	svg.append('ath></defs>');
 }
 
 #[inline(always)]
-fn print_head_57480(ref svg: Array<felt252> , data: @Data) {
-	svg.append('<g><rect /><rect />'
-	print_head_76822(ref svg, data);
-	svg.append('<!-- lower text -->'
-	print_46699(ref svg, data);
-	svg.append('<!-- SDGS --><rect />'
-	print_59621(ref svg, data);
+fn print_head_38279(ref svg: Array<felt252> , data: @Data) {
+	svg.append('<g><rect /><rect />');
+	print_head_84862(ref svg, data);
+	svg.append('<!-- lower text -->');
+	print_64668(ref svg, data);
+	svg.append('<!-- SDGS --><rect />');
+	print_56062(ref svg, data);
 
-	print_head_31975(ref svg, data);
-	svg.append('<rect /></g>'
+	print_head_62996(ref svg, data);
+	svg.append('<rect /></g>');
 }
 
 
 
 #[inline(always)]
-fn print_head_49132(ref svg: Array<felt252> , data: @Data) {
-	svg.append('<svg><!-- card -->'
-	print_head_57480(ref svg, data);
-	svg.append('</svg>'
+fn print_head_63887(ref svg: Array<felt252> , data: @Data) {
+	svg.append('<svg><!-- card -->');
+	print_head_38279(ref svg, data);
+	svg.append('</svg>');
 }
