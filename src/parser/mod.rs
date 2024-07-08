@@ -1,10 +1,10 @@
 use itertools::Itertools;
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use pest::iterators::Pair;
 use pest_derive::Parser;
+use std::fmt::Display;
 use thiserror::Error;
-
 #[derive(Parser, Debug)]
 #[grammar = "parser/svg.pest"]
 pub struct SvgParser {}
@@ -21,6 +21,34 @@ pub enum SvgElementError {
     NoTag,
 }
 
+#[derive(Debug, Clone, Default)]
+pub enum CairoStringRepr {
+    #[default]
+    ArrayFelt, // default representation of string in cairo lang.
+    ByteArray,
+}
+
+impl Display for CairoStringRepr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            Self::ArrayFelt => write!(f, "Array<felt252>"),
+            Self::ByteArray => write!(f, "ByteArray"),
+            _ => unimplemented!(),
+        }
+    }
+}
+
+impl FromStr for CairoStringRepr {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ByteArray" => Ok(CairoStringRepr::ByteArray),
+            _ => Err(()),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SvgElement {
     pub outer: String,
@@ -28,6 +56,7 @@ pub struct SvgElement {
     pub attributes: HashMap<String, String>,
     pub replacement: HashMap<String, String>,
     pub nodes: Vec<SvgElement>,
+    pub type_override: CairoStringRepr,
 }
 
 impl TryFrom<Pair<'_, Rule>> for SvgElement {
@@ -96,6 +125,7 @@ impl TryFrom<Pair<'_, Rule>> for SvgElement {
             attributes,
             replacement,
             nodes,
+            type_override: CairoStringRepr::ArrayFelt,
         })
     }
 }
@@ -113,6 +143,14 @@ impl SvgElement {
             .interleave(nodes_plain_outer)
             .collect::<Vec<String>>()
             .join("")
+    }
+
+    // set type override for parent and all child nodes
+    pub fn with_type_override(&mut self, type_override: CairoStringRepr) {
+        self.type_override = type_override.clone();
+        for node in self.nodes.iter_mut() {
+            node.with_type_override(type_override.clone());
+        }
     }
 }
 
@@ -140,7 +178,7 @@ mod tests {
     use crate::parser::{Rule, SvgParser};
     use pest::{iterators::Pair, Parser};
 
-    use super::SvgElement;
+    use super::{CairoStringRepr, SvgElement};
 
     /// traverse svg tree and call callback on each iteration
     /// pair - [`pair<rule>`] - parsed pair
@@ -311,6 +349,7 @@ mod tests {
                 attributes: HashMap::new(),
                 nodes: Vec::new(),
                 replacement: HashMap::new(),
+                type_override: CairoStringRepr::ArrayFelt,
             }
         }
         fn add_node(&mut self, node: Self) {

@@ -1,4 +1,4 @@
-use crate::parser::SvgElement;
+use crate::parser::{CairoStringRepr, SvgElement};
 use itertools::Itertools;
 use rand::Rng;
 use regex::Regex;
@@ -13,7 +13,7 @@ impl Display for SvgElement {
         let parts: Vec<CairoString> = self
             .outer
             .split("{inner_nodes}")
-            .map(|p| CairoString::from(p))
+            .map(|p| CairoString::from(p).with_type_override(self.type_override.clone()))
             .collect();
         let head = Part::build_head_element(self);
         let mut body: BTreeMap<usize, Part> = BTreeMap::new();
@@ -44,7 +44,7 @@ impl Display for SvgElement {
 {}
 
 #[inline(always)]
-fn {}(ref svg: Array<felt252>{}) {{
+fn {}(ref svg: {} {}) {{
 {}
 }}"#,
             prelude,
@@ -54,6 +54,7 @@ fn {}(ref svg: Array<felt252>{}) {{
                 .collect::<Vec<String>>()
                 .join("\n"),
             head.name.to_string(),
+            self.type_override,
             print_function_required_arguments(
                 parts.as_slice(),
                 body.iter()
@@ -203,6 +204,7 @@ struct Part {
     name: String,
     value: CairoString,
     as_function_call: bool,
+    type_override: CairoStringRepr,
 }
 
 /// Generates a random integer as a String
@@ -235,8 +237,10 @@ impl Part {
 
         Self {
             name,
-            value: CairoString::from(head.to_owned()),
+            value: CairoString::from(head.to_owned())
+                .with_type_override(element.type_override.clone()),
             as_function_call: false,
+            type_override: element.type_override.clone(),
         }
     }
 
@@ -254,8 +258,10 @@ impl Part {
 
         Self {
             name,
-            value: CairoString::from(tail.to_owned()),
+            value: CairoString::from(tail.to_owned())
+                .with_type_override(element.type_override.clone()),
             as_function_call: false,
+            type_override: element.type_override.clone(),
         }
     }
 
@@ -283,8 +289,9 @@ impl From<SvgElement> for Part {
 
         Self {
             name,
-            value: CairoString::from(value.outer),
+            value: CairoString::from(value.outer).with_type_override(value.type_override.clone()),
             as_function_call: false,
+            type_override: value.type_override.clone(),
         }
     }
 }
@@ -298,8 +305,10 @@ impl From<&SvgElement> for Part {
 
         Self {
             name,
-            value: CairoString::from(value.outer.to_owned()),
+            value: CairoString::from(value.outer.to_owned())
+                .with_type_override(value.type_override.clone()),
             as_function_call: false,
+            type_override: value.type_override.clone(),
         }
     }
 }
@@ -326,10 +335,11 @@ impl Display for Part {
         write!(
             f,
             r#"#[inline(always)]
-fn {}(ref svg: Array<felt252>, data: @Data) {{
+fn {}(ref svg: {}, data: @Data) {{
 {}
 }}"#,
             &self.name,
+            self.type_override,
             self.value.to_string(),
         )
     }
@@ -349,6 +359,7 @@ pub fn append_string(value: &mut String, append: &str) {
 pub struct CairoString {
     inner: String,
     arguments: Arguments,
+    type_override: CairoStringRepr,
 }
 
 #[derive(Debug, Clone)]
@@ -402,6 +413,7 @@ impl From<&str> for CairoString {
         Self {
             inner: value.to_string(),
             arguments: Arguments::from(value),
+            type_override: CairoStringRepr::default(),
         }
     }
 }
@@ -411,6 +423,7 @@ impl From<String> for CairoString {
         Self {
             inner: value.to_string(),
             arguments: Arguments::from(value.as_str()),
+            type_override: CairoStringRepr::default(),
         }
     }
 }
@@ -426,7 +439,15 @@ impl From<Vec<SvgElement>> for CairoString {
         Self {
             inner: elements.to_owned(),
             arguments: Arguments::from(elements.as_str()),
+            type_override: value[0].type_override.clone(),
         }
+    }
+}
+
+impl CairoString {
+    pub fn with_type_override(mut self, type_override: CairoStringRepr) -> Self {
+        self.type_override = type_override;
+        self
     }
 }
 
@@ -462,55 +483,83 @@ impl Display for CairoString {
             if 0 != i {
                 head.extend(['\n']);
             }
+
             // Escape quotes for JSON in Cairo
-            let part = &part.replace('"', "\\\\\"");
-
-            // Make chunks of length at most 31 chars
-            // but don't end with a single backslash
-
-            let chunk_sizes =
-                part.chars()
-                    .collect::<Vec<char>>()
-                    .iter()
-                    .fold(vec![(0, false)], |mut acc, c| {
-                        let (size, prev_escaped) = acc.last_mut().unwrap();
-                        let new_escaped = c == &'\\';
-                        if 31 == *size {
-                            acc.push((1, new_escaped));
-                            acc
-                        } else if 30 == *size && new_escaped && !*prev_escaped {
-                            acc.push((1, new_escaped));
-                            acc
-                        } else if 30 == *size && &' ' == c {
-                            acc.push((1, false));
-                            acc
-                        } else {
-                            *size += 1;
-                            *prev_escaped = new_escaped;
-                            acc
-                        }
-                    });
-
-            let mut nodes = chunk_sizes.iter().enumerate();
-            let mut prev_index = 0;
-            while let Some((i, (size, _))) = nodes.next() {
-                if 0 != i {
-                    head.extend(['\n']);
-                }
-
-                let str = part[prev_index..*size + prev_index].chars();
-                prev_index += *size;
-                if !arg_names.contains(part) {
+            let part = part.replace(r#"""#, r#"\\\""#);
+            // in case of using default Array<felt252> type, we need to chunk the string
+            // to avoid cairo string length limit
+            match self.type_override {
+                CairoStringRepr::ByteArray => {
                     head.extend("\tsvg.append(".chars());
-                    head.extend(['\'']);
-                    head.extend(str);
-                    head.extend(['\'']);
-                } else {
-                    head.extend("\tsvg.concat(".chars());
-                    head.extend("*data.".chars());
-                    head.extend(str);
+                    head.extend(['@', '\"']);
+                    // Escape quotes for JSON in Cairo
+                    head.extend(
+                        part.chars()
+                            .map(|c| c.to_string().replace(r#"""#, r#"\\""#)),
+                    );
+                    head.extend(['\"']);
+                    head.extend([')', ';']);
                 }
-                head.extend([')', ';']);
+                _ => {
+                    // Make chunks of length at most 31 chars
+                    // but don't end with a single backslash
+                    let chunk_sizes = part.chars().collect::<Vec<char>>().iter().fold(
+                        vec![(0, false)],
+                        |mut acc, c| {
+                            let (size, prev_escaped) = acc.last_mut().unwrap();
+                            let new_escaped = c == &'\\';
+                            if 31 == *size {
+                                acc.push((1, new_escaped));
+                                acc
+                            } else if 30 == *size && new_escaped && !*prev_escaped {
+                                acc.push((1, new_escaped));
+                                acc
+                            } else if 30 == *size && &' ' == c {
+                                acc.push((1, false));
+                                acc
+                            } else {
+                                *size += 1;
+                                *prev_escaped = new_escaped;
+                                acc
+                            }
+                        },
+                    );
+
+                    let mut nodes = chunk_sizes.iter().enumerate();
+                    let mut prev_index = 0;
+                    while let Some((i, (size, _))) = nodes.next() {
+                        if 0 != i {
+                            head.extend(['\n']);
+                        }
+
+                        let str = part[prev_index..*size + prev_index].chars();
+                        prev_index += *size;
+                        if !arg_names.contains(&part) {
+                            head.extend("\tsvg.append(".chars());
+                            match self.type_override {
+                                CairoStringRepr::ByteArray => {
+                                    head.extend(['@', '\"']);
+                                    // Escape quotes for JSON in Cairo
+                                    head.extend(
+                                        str.map(|c| c.to_string().replace(r#"""#, r#"\\""#)),
+                                    );
+                                    head.extend(['\"']);
+                                }
+                                _ => {
+                                    head.extend(['\'']);
+                                    head.extend(str);
+                                    head.extend(['\'']);
+                                    head.extend([')', ';']);
+                                }
+                            }
+                        } else {
+                            head.extend("\tsvg.concat(".chars());
+                            head.extend("*data.".chars());
+                            head.extend(str);
+                            head.extend([')', ';']);
+                        }
+                    }
+                }
             }
         }
         f.write_str(&head)
@@ -557,7 +606,7 @@ mod tests {
         let input = r#"<svg width="316" height="360" viewBox="0 0 316 360" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"></svg>"#;
 
         let cairo_string: CairoString = CairoString::from(input);
-        let expected = "\tsvg.append('<svg width=\"316\" height=\"360\" v');\n\tsvg.append('iewBox=\"0 0 316 360\" fill=\"none');\n\tsvg.append('\" xmlns=\"http://www.w3.org/2000');\n\tsvg.append('/svg\" xmlns:xlink=\"http://www.w');\n\tsvg.append('3.org/1999/xlink\"></svg>');";
+        let expected = "\tsvg.append('<svg width=\\\\\"316\\\\\" height=\\\\\"');\n\tsvg.append('360\\\\\" viewBox=\\\\\"0 0 316 360\\\\');\n\tsvg.append('\" fill=\\\\\"none\\\\\" xmlns=\\\\\"http');\n\tsvg.append('://www.w3.org/2000/svg\\\\\" xmlns');\n\tsvg.append(':xlink=\\\\\"http://www.w3.org/199');\n\tsvg.append('9/xlink\\\\\"></svg>');";
 
         assert_eq!(expected, cairo_string.to_string());
     }
@@ -651,8 +700,8 @@ mod tests {
         let input = "this is a test string @@argument_1@@ with two vars @@argument2@@";
         let arguments = Arguments::from(input);
 
-        assert_eq!(arguments.0.get(&0).unwrap().0.as_str(), "felt252");
-        assert_eq!(arguments.0.get(&1).unwrap().0.as_str(), "felt252");
+        assert_eq!(arguments.0.get(&0).unwrap().1.as_str(), "felt252");
+        assert_eq!(arguments.0.get(&1).unwrap().1.as_str(), "felt252");
     }
 
     #[test]
@@ -660,14 +709,15 @@ mod tests {
         let input = "@@argument1:ConcreteType@@";
         let arguments = Arguments::from(input);
 
-        assert_eq!(arguments.0.get(&0).unwrap().0.as_str(), "ConcreteType");
+        assert_eq!(arguments.0.get(&0).unwrap().0.as_str(), "argument1");
+        assert_eq!(arguments.0.get(&0).unwrap().1.as_str(), "ConcreteType");
     }
 
     #[test]
     fn test_cairo_string_with_arguments() {
         let input = r#"<svg width="@@starknet_id@@"></svg>"#;
         let cairo_string = CairoString::from(input);
-        let expected = "\tsvg.append('<svg width=\"');\n\tsvg.append(starknet_id);\n\tsvg.append('\"></svg>');";
+        let expected = "\tsvg.append('<svg width=\\\\\"');\n\tsvg.concat(*data.starknet_id);\n\tsvg.append('\\\\\"></svg>');";
 
         assert_eq!(expected, cairo_string.to_string());
     }
